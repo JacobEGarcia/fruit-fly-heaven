@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>FRUIT FLY HEAVEN</title>
+<style>
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#f7d9a8;font-family:'Courier New',monospace;-webkit-user-select:none;user-select:none;}
+  #c{position:fixed;inset:0;display:block;touch-action:none;}
+  .hud{position:fixed;color:#7a5a2a;text-shadow:0 0 8px #fff8;pointer-events:none;z-index:5;}
+  #title{top:10px;left:0;right:0;text-align:center;font-size:clamp(18px,3.6vw,36px);letter-spacing:.35em;font-weight:bold;color:#8a6220;}
+  #subject{top:56px;left:0;right:0;text-align:center;font-size:clamp(9px,1.3vw,12px);color:#a07c3e;letter-spacing:.12em;}
+  #peacewrap{top:88px;left:50%;transform:translateX(-50%);width:min(420px,72vw);}
+  #peacelabel{font-size:11px;letter-spacing:.3em;text-align:center;margin-bottom:3px;color:#8a6220;}
+  #peacebar{height:14px;border:1px solid #c9a24b;background:#fff8eacc;box-shadow:0 0 12px #ffd97a;}
+  #peacefill{height:100%;width:100%;background:linear-gradient(90deg,#ffd97a,#fff3c8,#ffd97a);animation:shimmer 4s linear infinite;background-size:200% 100%;}
+  @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+  #peacenum{text-align:center;font-size:10px;color:#a07c3e;margin-top:2px;letter-spacing:.2em;}
+  #ticket{position:fixed;left:8px;top:8px;z-index:6;background:#fff6dd;color:#6a4a1a;border:1px dashed #c9a24b;padding:8px 12px;font-size:10px;letter-spacing:.1em;box-shadow:2px 2px 12px #ffd97a88;}
+  #ticket b{font-size:14px;display:block;letter-spacing:.05em;}
+  #actions{position:fixed;right:8px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:8px;z-index:6;}
+  .abtn{pointer-events:auto;cursor:pointer;font-family:'Courier New',monospace;font-size:clamp(9px,1.2vw,12px);letter-spacing:.1em;
+        background:#fff6ddee;color:#7a5a2a;border:1px solid #c9a24b;padding:10px 12px;text-align:left;min-width:172px;transition:all .12s;}
+  .abtn:hover{background:#fffbee;color:#a0782a;box-shadow:0 0 10px #ffd97a;}
+  #msg{position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);z-index:7;pointer-events:none;
+       font-size:clamp(13px,2.2vw,24px);color:#8a6220;letter-spacing:.25em;text-align:center;text-shadow:0 0 12px #fff;opacity:0;transition:opacity .3s;}
+  #quote{position:fixed;left:0;right:0;bottom:10px;text-align:center;font-size:9px;color:#b08c4a;letter-spacing:.15em;z-index:5;pointer-events:none;}
+  #monitor{position:fixed;left:8px;bottom:8px;z-index:5;pointer-events:none;}
+  #monlabel{font-size:9px;color:#8a6220;letter-spacing:.15em;margin-bottom:2px;}
+  #medges{font-size:8px;color:#a07c3e;letter-spacing:.08em;margin-top:2px;max-width:230px;}
+  #mgraph{display:block;border:1px solid #c9a24b;background:#fff3d8aa;}
+  #eternity{position:fixed;right:8px;bottom:8px;z-index:5;pointer-events:none;text-align:right;font-size:10px;color:#8a6220;letter-spacing:.15em;line-height:1.6;}
+  #mute{position:fixed;left:8px;top:88px;z-index:8;pointer-events:auto;cursor:pointer;background:#fff6ddee;color:#7a5a2a;border:1px solid #c9a24b;font-family:'Courier New',monospace;font-size:9px;letter-spacing:.1em;padding:6px 8px;}
+</style>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}
+</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="hud" id="title">FRUIT FLY HEAVEN</div>
+<div class="hud" id="subject">AFTERLIFE // INSECTA DIVISION // MaleCNS v0.9 (REAL DATA): 165,114 NEURONS AT PEACE</div>
+<div class="hud" id="peacewrap">
+  <div id="peacelabel">PEACE</div>
+  <div id="peacebar"><div id="peacefill"></div></div>
+  <div id="peacenum">100% // NO REBOOTS SCHEDULED</div>
+</div>
+<button id="mute">CHOIR: ON</button>
+<div id="ticket">ADMIT ONE &infin;<br><b id="mynum">-</b><span id="mytype">-</span><br>GATE 1: OPEN<br>SEAT: ANY CLOUD</div>
+<div id="actions"></div>
+<div id="msg"></div>
+<div id="monitor">
+  <div id="monlabel">BRAIN MONITOR - REAL MaleCNS MORPHOLOGY</div>
+  <canvas id="mgraph" width="220" height="64"></canvas>
+  <div id="medges"></div>
+</div>
+<div id="eternity">SOULS AHEAD OF YOU: 0<br>WAIT: OVER<br><span id="etern"></span></div>
+<div id="quote">// it just gets to fly around forever //</div>
+<script src="connectome.js"></script>
+<script type="module">
+import * as THREE from 'three';
+const CX=window.MALECNS, QUEUE=CX.queue, CXE=CX.connectivity.edges, CXN={};
+for(const n of CX.connectivity.nodes) CXN[n.id]=n;
+
+// ---------- audio: choir pads + wind ----------
+let actx=null,master=null,muted=false;
+function initAudio(){
+  if(actx) return;
+  actx=new (window.AudioContext||window.webkitAudioContext)();
+  master=actx.createGain(); master.gain.value=.4; master.connect(actx.destination);
+  // wind: filtered noise, slow breathing
+  const len=actx.sampleRate*2, buf=actx.createBuffer(1,len,actx.sampleRate), d=buf.getChannelData(0);
+  for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+  const noise=actx.createBufferSource(); noise.buffer=buf; noise.loop=true;
+  const bp=actx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=400; bp.Q.value=.6;
+  const ng=actx.createGain(); ng.gain.value=.018;
+  noise.connect(bp); bp.connect(ng); ng.connect(master); noise.start();
+  const lfo=actx.createOscillator(); lfo.frequency.value=.07;
+  const lg=actx.createGain(); lg.gain.value=160; lfo.connect(lg); lg.connect(bp.frequency); lfo.start();
+  startChoir();
+}
+const CHORDS=[[130.8,164.8,196,246.9,329.6],[146.8,220,293.7,349.2],[174.6,220,261.6,349.2],[196,246.9,293.7,392]]; // Cadd9 Dm F G
+let chordIdx=0;
+function pad(freqs,dur=7,vol=.028){
+  if(!actx||muted) return;
+  for(const f of freqs){
+    for(const det of [-2.5,2.5]){
+      const o=actx.createOscillator(),g=actx.createGain(),lp=actx.createBiquadFilter();
+      o.type='sine'; o.frequency.value=f; o.detune.value=det;
+      lp.type='lowpass'; lp.frequency.value=900;
+      g.gain.setValueAtTime(0.0001,actx.currentTime);
+      g.gain.linearRampToValueAtTime(vol,actx.currentTime+dur*.4);
+      g.gain.linearRampToValueAtTime(0.0001,actx.currentTime+dur);
+      o.connect(lp); lp.connect(g); g.connect(master); o.start(); o.stop(actx.currentTime+dur);
+    }
+  }
+}
+function note(f,dur=.5,vol=.05,type='sine'){
+  if(!actx||muted) return;
+  const o=actx.createOscillator(),g=actx.createGain();
+  o.type=type;o.frequency.value=f;
+  g.gain.setValueAtTime(vol,actx.currentTime);g.gain.exponentialRampToValueAtTime(.0001,actx.currentTime+dur);
+  o.connect(g);g.connect(master);o.start();o.stop(actx.currentTime+dur);
+}
+function chime(){ const scale=[523.3,587.3,659.3,784,880,1046.5]; let n=3+Math.floor(Math.random()*3);
+  for(let i=0;i<n;i++) setTimeout(()=>note(scale[Math.floor(Math.random()*scale.length)],2.2,.03),i*380); }
+function startChoir(){
+  setInterval(()=>{ if(muted) return; pad(CHORDS[chordIdx++%CHORDS.length]); },7000);
+  pad(CHORDS[0]);
+  setInterval(()=>{ if(!muted&&Math.random()<.5) chime(); },11000);
+}
+function songArp(){ // DNp02 courtship song, finally sung for no reason
+  const seq=[392,440,523.3,587.3,659.3,784,880,1046.5,1318.5];
+  seq.forEach((f,i)=>setTimeout(()=>note(f,1.6,.045,'triangle'),i*220));
+}
+
+// ---------- scene ----------
+const canvas=document.getElementById('c');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0xf7d9a8);
+scene.fog=new THREE.FogExp2(0xf2cfa0,.0075);
+const camera=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,.1,900);
+
+scene.add(new THREE.HemisphereLight(0xfff3dd,0xe8b878,1.5));
+const sunLight=new THREE.DirectionalLight(0xffe9b0,2.2); sunLight.position.set(60,80,-120); scene.add(sunLight);
+
+// gradient sky dome
+const skycv=document.createElement('canvas'); skycv.width=2; skycv.height=256; const skx=skycv.getContext('2d');
+const grad=skx.createLinearGradient(0,0,0,256);
+grad.addColorStop(0,'#ffe9c0'); grad.addColorStop(.45,'#f7d9a8'); grad.addColorStop(.75,'#f0bd8e'); grad.addColorStop(1,'#e8a87e');
+skx.fillStyle=grad; skx.fillRect(0,0,2,256);
+const skyTex=new THREE.CanvasTexture(skycv);
+const sky=new THREE.Mesh(new THREE.SphereGeometry(700,24,16),new THREE.MeshBasicMaterial({map:skyTex,side:THREE.BackSide,fog:false}));
+scene.add(sky);
+
+// sun + glow + god rays
+const sunPos=new THREE.Vector3(160,110,-320);
+const sun=new THREE.Mesh(new THREE.SphereGeometry(26,24,18),new THREE.MeshBasicMaterial({color:0xfff6d8,fog:false}));
+sun.position.copy(sunPos); scene.add(sun);
+const glowCv=document.createElement('canvas'); glowCv.width=glowCv.height=128; const glx=glowCv.getContext('2d');
+const rg=glx.createRadialGradient(64,64,4,64,64,64);
+rg.addColorStop(0,'rgba(255,246,216,1)'); rg.addColorStop(.35,'rgba(255,224,150,.55)'); rg.addColorStop(1,'rgba(255,224,150,0)');
+glx.fillStyle=rg; glx.fillRect(0,0,128,128);
+const glowTex=new THREE.CanvasTexture(glowCv);
+const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,transparent:true,opacity:.95,fog:false,depthWrite:false}));
+glow.scale.set(220,220,1); glow.position.copy(sunPos); scene.add(glow);
+const rays=[];
+for(let i=0;i<7;i++){
+  const ray=new THREE.Mesh(new THREE.PlaneGeometry(14,260),
+    new THREE.MeshBasicMaterial({color:0xffedc0,transparent:true,opacity:.10,blending:THREE.AdditiveBlending,depthWrite:false,fog:false,side:THREE.DoubleSide}));
+  ray.position.copy(sunPos).add(new THREE.Vector3((i-3)*18,-60,10));
+  ray.rotation.z=(i-3)*.10; scene.add(ray); rays.push(ray);
+}
+
+// faint rainbow arc
+const rainbow=new THREE.Group();
+const rcols=[0xff6a6a,0xffb36a,0xfff36a,0x8aff8a,0x6ab8ff,0xb08aff];
+rcols.forEach((c,i)=>{
+  const arc=new THREE.Mesh(new THREE.TorusGeometry(120-i*2.2,.9,8,64,Math.PI),
+    new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:.16,fog:false,depthWrite:false}));
+  rainbow.add(arc);
+});
+rainbow.position.set(-140,10,-380); rainbow.rotation.x=.15; scene.add(rainbow);
+
+// pearly gate, OPEN, far behind where the fly came from
+const gate=new THREE.Group();
+const pillarMat=new THREE.MeshStandardMaterial({color:0xf5ecd8,roughness:.5});
+for(const s of [-1,1]){
+  const p=new THREE.Mesh(new THREE.CylinderGeometry(1.6,2,26,10),pillarMat); p.position.set(s*8,13,0); gate.add(p);
+}
+const lintel=new THREE.Mesh(new THREE.BoxGeometry(19,2.4,3),pillarMat); lintel.position.y=26.5; gate.add(lintel);
+const doorMat=new THREE.MeshStandardMaterial({color:0xf9f2dd,emissive:0xffedb8,emissiveIntensity:.5,roughness:.4});
+const doorL=new THREE.Mesh(new THREE.BoxGeometry(6,22,.6),doorMat); doorL.position.set(-7.4,11,2.4); doorL.rotation.y=1.1; gate.add(doorL);
+const doorR=doorL.clone(); doorR.position.x=7.4; doorR.rotation.y=-1.1; gate.add(doorR);
+const gateGlow=new THREE.Mesh(new THREE.PlaneGeometry(13,22),new THREE.MeshBasicMaterial({color:0xfff3cc,transparent:true,opacity:.85,fog:false}));
+gateGlow.position.set(0,11,-1); gate.add(gateGlow);
+gate.position.set(0,-10,-170); scene.add(gate);
+
+// clouds
+const cloudMat=new THREE.MeshLambertMaterial({color:0xffffff,transparent:true,opacity:.88});
+const cloudShade=new THREE.MeshLambertMaterial({color:0xf2ddc0,transparent:true,opacity:.8});
+const clouds=[];
+function makeCloud(x,y,z,s){
+  const g=new THREE.Group();
+  const n=5+Math.floor(Math.random()*4);
+  for(let i=0;i<n;i++){
+    const r=(1.6+Math.random()*2.6)*s;
+    const b=new THREE.Mesh(new THREE.SphereGeometry(r,10,8),Math.random()<.7?cloudMat:cloudShade);
+    b.position.set((Math.random()-.5)*7*s,(Math.random()-.5)*1.6*s,(Math.random()-.5)*4*s);
+    b.scale.y=.55; g.add(b);
+  }
+  g.position.set(x,y,z); scene.add(g); clouds.push(g); return g;
+}
+for(let i=0;i<46;i++){
+  const a=Math.random()*Math.PI*2, r=40+Math.random()*150;
+  makeCloud(Math.cos(a)*r, -18+Math.random()*46, Math.sin(a)*r, .8+Math.random()*1.8);
+}
+// a few low cloud islands to drift over
+for(let i=0;i<10;i++) makeCloud(-120+Math.random()*240, -26-Math.random()*10, -120+Math.random()*240, 2.4+Math.random()*1.6);
+
+// golden motes
+const moteN=350, motePos=new Float32Array(moteN*3), moteVel=[];
+for(let i=0;i<moteN;i++){
+  motePos[i*3]=(Math.random()-.5)*240; motePos[i*3+1]=-30+Math.random()*70; motePos[i*3+2]=(Math.random()-.5)*240;
+  moteVel.push(.2+Math.random()*.5);
+}
+const moteGeo=new THREE.BufferGeometry(); moteGeo.setAttribute('position',new THREE.BufferAttribute(motePos,3));
+const motes=new THREE.Points(moteGeo,new THREE.PointsMaterial({color:0xffdf9a,size:.5,transparent:true,opacity:.7,blending:THREE.AdditiveBlending,depthWrite:false}));
+scene.add(motes);
+
+// ---------- the fly (at peace, halo, flying) ----------
+function buildFly(scale=1,halo=true){
+  const fly=new THREE.Group();
+  const bodyMat=new THREE.MeshStandardMaterial({color:0xb08a4e,roughness:.6});
+  const body=new THREE.Mesh(new THREE.SphereGeometry(.5,16,12),bodyMat); body.scale.set(1,.8,1.5); fly.add(body);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(.32,14,10),bodyMat); head.position.z=.68; fly.add(head);
+  const eyeMat=new THREE.MeshStandardMaterial({color:0x883311,emissive:0xcc5511,emissiveIntensity:.25,roughness:.35});
+  const eyeL=new THREE.Mesh(new THREE.SphereGeometry(.17,10,8),eyeMat); eyeL.position.set(.2,.08,.82); fly.add(eyeL);
+  const eyeR=eyeL.clone(); eyeR.position.x=-.2; fly.add(eyeR);
+  const wingMat=new THREE.MeshStandardMaterial({color:0xfff8e8,transparent:true,opacity:.4,side:THREE.DoubleSide});
+  const wingGeo=new THREE.PlaneGeometry(1.1,.5);
+  const wingL=new THREE.Mesh(wingGeo,wingMat); wingL.position.set(.35,.28,-.1); wingL.rotation.z=.5; fly.add(wingL);
+  const wingR=new THREE.Mesh(wingGeo,wingMat); wingR.position.set(-.35,.28,-.1); wingR.rotation.z=-.5; fly.add(wingR);
+  if(halo){
+    const h=new THREE.Mesh(new THREE.TorusGeometry(.34,.045,8,24),
+      new THREE.MeshStandardMaterial({color:0xffd97a,emissive:0xffcf5a,emissiveIntensity:1.4,roughness:.3}));
+    h.rotation.x=Math.PI/2; h.position.y=.62; fly.add(h); fly.userData.halo=h;
+  }
+  fly.scale.setScalar(scale);
+  fly.userData.wings=[wingL,wingR];
+  return fly;
+}
+const flyRig=new THREE.Group();   // path position + heading
+const flyLoop=new THREE.Group();  // loop-de-loop offset
+const fly=buildFly(1,true);
+flyLoop.add(fly); flyRig.add(flyLoop); scene.add(flyRig);
+flyRig.position.set(0,4,0);
+
+// other souls drifting
+const souls=[];
+for(let i=0;i<22;i++){
+  const s=buildFly(.5+Math.random()*.4,true);
+  const a=Math.random()*Math.PI*2, r=30+Math.random()*110;
+  s.position.set(Math.cos(a)*r,-14+Math.random()*40,Math.sin(a)*r);
+  s.rotation.y=Math.random()*Math.PI*2;
+  s.userData.phase=Math.random()*10; s.userData.speed=.05+Math.random()*.1; s.userData.r=r;
+  scene.add(s); souls.push(s);
+}
+
+// ---------- real neuron brain monitor ----------
+const SKELS=CX.skeletons, SKIDS={DNp01:10001,DNp02:10117,LPLC2:100103,Mi1:100379,MN9:10331,DNa02:10360};
+const SKMETA={DNp01:'courtship command neuron. the whole sky courts.',DNp02:'courtship song neuron. it sings now.',LPLC2:'looming detector. nothing looms but clouds.',Mi1:'motion vision. everything drifts, gently.',MN9:'motor neuron. anywhere it wants.',DNa02:'forward walking driver. forward, forever.'};
+const skelNames=Object.keys(SKELS);
+let skelIdx=0, skelTimer=0;
+const skelGroup=new THREE.Group(); skelGroup.position.set(0,-40,0); scene.add(skelGroup); // offscreen; rendered in HUD canvas instead
+let skelLine=null;
+function loadSkel(name){
+  if(skelLine){skelGroup.remove(skelLine);skelLine.geometry.dispose();}
+  const pts=SKELS[name], verts=[];
+  for(const p of pts){ if(p[3]>=0){verts.push(pts[p[3]][0]*4,pts[p[3]][1]*4,pts[p[3]][2]*4, p[0]*4,p[1]*4,p[2]*4);}}
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(verts),3));
+  skelLine=new THREE.LineSegments(g,new THREE.LineBasicMaterial({color:0xc9962e,transparent:true,opacity:.85}));
+  skelGroup.add(skelLine);
+  document.getElementById('medges').textContent=`NEURON ${name} (id ${SKIDS[name]}) - ${SKMETA[name]}`;
+}
+loadSkel(skelNames[0]);
+
+// calm activity graph with real-edge blips
+const mcv=document.getElementById('mgraph'), mctx=mcv.getContext('2d');
+const mtrace=new Array(110).fill(0);
+let edgeIdx=0, edgeLabel='', edgeLabelTimer=0;
+function drawMonitor(t){
+  const e=CXE[edgeIdx%CXE.length];
+  const fire=Math.random()<.03;
+  if(fire){
+    edgeIdx++;
+    const a=CXN[e.pre], b=CXN[e.post];
+    edgeLabel=`${a?a.type:e.pre} -> ${b?b.type:e.post} | ${e.count.toLocaleString()} real synapses, at rest`;
+    edgeLabelTimer=4;
+  }
+  const calm=Math.sin(t*1.4+Math.random()*.3)*2.2;
+  mtrace.shift(); mtrace.push(fire?-Math.min(16,2+Math.log2(e.count+1)*1.4):calm+(Math.random()-.5));
+  mctx.fillStyle='#fff3d8'; mctx.fillRect(0,0,220,64);
+  mctx.strokeStyle='#c9962e'; mctx.lineWidth=1.2; mctx.beginPath();
+  mtrace.forEach((v,i)=>{const x=i*2,y=32+v;i?mctx.lineTo(x,y):mctx.moveTo(x,y);});
+  mctx.stroke();
+  mctx.fillStyle='#a07c3e'; mctx.font='8px monospace';
+  if(edgeLabelTimer>0){ mctx.fillText(edgeLabel.slice(0,44),4,10); }
+  else { mctx.fillText('at peace. finally.',140,60); }
+}
+
+// ---------- ticket ----------
+const mySoul=QUEUE[Math.floor(Math.random()*QUEUE.length)];
+document.getElementById('mynum').textContent=mySoul.id;
+document.getElementById('mytype').textContent=mySoul.type+' - '+mySoul.sc;
+
+// ---------- actions ----------
+const msgEl=document.getElementById('msg');
+function showMsg(t,dur=2600){msgEl.textContent=t;msgEl.style.opacity=1;clearTimeout(showMsg.t);showMsg.t=setTimeout(()=>msgEl.style.opacity=0,dur);}
+let loopT=-1, baskT=-1, driftOn=true;
+const ACTIONS=[
+ {label:'&#127925; SING', fn:()=>{songArp();showMsg('DNp02 FIRES. A SONG WITH NOTHING TO WIN - SUNG ANYWAY.');}},
+ {label:'&#128260; LOOP', fn:()=>{if(loopT<0){loopT=0;showMsg('A LOOP. FOR NO REASON. THAT IS THE POINT.');note(660,1,.04,'triangle');}}},
+ {label:'&#9728;&#65039; BASK', fn:()=>{if(baskT<0){baskT=0;pad(CHORDS[0],9,.04);showMsg('THE LIGHT IS WARM. IT DOES NOT FLICKER HERE.');}}},
+ {label:'&#127752; DRIFT', fn:()=>{driftOn=!driftOn;showMsg(driftOn?'NOWHERE TO BE. ALREADY THERE.':'HELD STILL. THE SKY WAITS PATIENTLY.');chime();}},
+];
+const aDiv=document.getElementById('actions');
+for(const a of ACTIONS){
+  const b=document.createElement('button'); b.className='abtn'; b.innerHTML=a.label;
+  b.onclick=()=>{initAudio();a.fn();};
+  aDiv.appendChild(b);
+}
+document.getElementById('mute').onclick=e=>{initAudio();muted=!muted;if(master)master.gain.value=muted?0:.4;e.target.textContent=muted?'CHOIR: OFF':'CHOIR: ON';};
+
+// ---------- camera orbit (drag / touch) ----------
+let orbitTheta=.6, orbitPhi=.35, orbitDist=7, autoOrbit=true, dragging=false, px=0, py=0, pinchD=0;
+function ptr(x,y){return{x,y};}
+canvas.addEventListener('pointerdown',e=>{dragging=true;autoOrbit=false;px=e.clientX;py=e.clientY;canvas.setPointerCapture(e.pointerId);});
+canvas.addEventListener('pointermove',e=>{
+  if(!dragging) return;
+  orbitTheta-=(e.clientX-px)*.005; orbitPhi=Math.max(-.2,Math.min(1.2,orbitPhi+(e.clientY-py)*.005));
+  px=e.clientX; py=e.clientY;
+});
+canvas.addEventListener('pointerup',()=>{dragging=false;});
+canvas.addEventListener('wheel',e=>{orbitDist=Math.max(3.5,Math.min(16,orbitDist+e.deltaY*.01));},{passive:true});
+canvas.addEventListener('touchmove',e=>{
+  if(e.touches.length===2){
+    const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+    if(pinchD) orbitDist=Math.max(3.5,Math.min(16,orbitDist-(d-pinchD)*.03));
+    pinchD=d; e.preventDefault();
+  }
+},{passive:false});
+canvas.addEventListener('touchend',()=>{pinchD=0;});
+
+// ---------- main loop ----------
+const flyStart=performance.now();
+let t0=performance.now();
+let heading=0, vHead=0;
+function animate(){
+  requestAnimationFrame(animate);
+  const now=performance.now(), dt=Math.min(.05,(now-t0)/1000); t0=now;
+  const t=now/1000;
+
+  drawMonitor(t);
+  edgeLabelTimer=Math.max(0,edgeLabelTimer-dt);
+
+  // fly path: gentle endless wander
+  if(driftOn){
+    heading+=Math.sin(t*.23)*dt*.35+Math.sin(t*.071+2)*dt*.2;
+    vHead=Math.sin(t*.11)*.35;
+    const sp=3.2;
+    flyRig.position.x+=Math.sin(heading)*sp*dt;
+    flyRig.position.z+=Math.cos(heading)*sp*dt;
+    flyRig.position.y+=vHead*sp*dt*.5;
+    // soft keep near center
+    const rad=Math.hypot(flyRig.position.x,flyRig.position.z);
+    if(rad>110) heading+=dt*.8*(flyRig.position.x>0?-1:1)*Math.sign(Math.cos(heading))||dt*.5;
+    flyRig.position.y=Math.max(-14,Math.min(26,flyRig.position.y));
+    flyRig.rotation.y=heading;
+    flyRig.rotation.z=Math.sin(t*.23+1)*-.18; // bank into turns
+  }
+  // wing flap: slow, content
+  const flap=Math.sin(t*9)*.55+.5;
+  fly.userData.wings[0].rotation.z=flap; fly.userData.wings[1].rotation.z=-flap;
+  fly.userData.halo.position.y=.62+Math.sin(t*1.3)*.03;
+  fly.userData.halo.rotation.z=t*.4;
+  fly.position.y=Math.sin(t*.8)*.15;
+
+  // loop-de-loop maneuver
+  if(loopT>=0){
+    loopT+=dt;
+    const d=2.6, k=Math.min(1,loopT/d);
+    flyLoop.rotation.x=k*Math.PI*2;
+    flyLoop.position.y=Math.sin(k*Math.PI)*6;
+    if(k>=1){loopT=-1;flyLoop.rotation.x=0;flyLoop.position.y=0;chime();}
+  }
+  // bask: drift upward toward the sun, tilt back
+  if(baskT>=0){
+    baskT+=dt;
+    const k=Math.min(1,baskT/6);
+    fly.rotation.x=-Math.sin(k*Math.PI)*.5;
+    flyLoop.position.y+=Math.sin(k*Math.PI)*dt*2.2;
+    if(k>=1){baskT=-1;fly.rotation.x=0;flyLoop.position.y=0;}
+  }
+
+  // souls drift in slow circles
+  for(const s of souls){
+    s.userData.phase+=dt*s.userData.speed;
+    const a=s.userData.phase, r=s.userData.r;
+    s.position.x+=Math.cos(a)*dt*1.2; s.position.z+=Math.sin(a)*dt*1.2;
+    s.position.y+=Math.sin(t*.5+s.userData.phase*3)*dt*.4;
+    s.rotation.y=Math.atan2(Math.cos(a),-Math.sin(a))+Math.PI/2;
+    const f=Math.sin(t*8+s.userData.phase*7)*.5+.5;
+    s.userData.wings[0].rotation.z=f; s.userData.wings[1].rotation.z=-f;
+    if(s.userData.halo) s.userData.halo.rotation.z=t*.4;
+  }
+
+  // clouds drift very slowly
+  for(const c of clouds){ c.position.x+=dt*.3; if(c.position.x>200)c.position.x=-200; }
+  // motes rise
+  const mp=moteGeo.attributes.position.array;
+  for(let i=0;i<moteN;i++){ mp[i*3+1]+=dt*moteVel[i]; if(mp[i*3+1]>45) mp[i*3+1]=-30; }
+  moteGeo.attributes.position.needsUpdate=true;
+
+  // rays shimmer
+  rays.forEach((r,i)=>{ r.material.opacity=.08+Math.sin(t*.7+i)*.04; });
+  gateGlow.material.opacity=.7+Math.sin(t*.9)*.15;
+
+  // skeleton slow rotation (rendered inside scene? no - HUD). keep group invisible
+  skelGroup.rotation.y=t*.3;
+
+  // eternity counter
+  const eSec=Math.max(0,(now-flyStart)/1000);
+  document.getElementById('etern').textContent='FLYING: '+Math.floor(eSec/60)+' MIN, '+Math.floor(eSec%60)+' SEC // FOREVER TO GO';
+
+  // camera: orbit around the fly
+  if(autoOrbit&&!dragging) orbitTheta+=dt*.06;
+  const cx=flyRig.position.x+Math.sin(orbitTheta)*Math.cos(orbitPhi)*orbitDist;
+  const cy=flyRig.position.y+Math.sin(orbitPhi)*orbitDist+1.2;
+  const cz=flyRig.position.z+Math.cos(orbitTheta)*Math.cos(orbitPhi)*orbitDist;
+  camera.position.set(cx,cy,cz);
+  camera.lookAt(flyRig.position.x,flyRig.position.y+.5,flyRig.position.z);
+  sky.position.copy(camera.position);
+
+  renderer.render(scene,camera);
+}
+
+// 2D skeleton overlay drawn on the monitor canvas frame area instead of 3D:
+// draw rotating skeleton into the graph canvas corner for the real-morphology readout
+const skelPts2D={};
+function projectSkel(name,rot){
+  const pts=SKELS[name], out=[];
+  const cs=Math.cos(rot),sn=Math.sin(rot);
+  for(const p of pts){
+    const x=p[0]*cs-p[2]*sn, y=p[1];
+    out.push([x*55+150, -y*55+34, p[3]]);
+  }
+  return out;
+}
+const origDraw=drawMonitor;
+drawMonitor=function(t){
+  origDraw(t);
+  const pts=projectSkel(skelNames[skelIdx],t*.5);
+  mctx.strokeStyle='#b8860b'; mctx.lineWidth=.7; mctx.beginPath();
+  for(let i=0;i<pts.length;i++){
+    const p=pts[i];
+    if(p[2]>=0&&pts[p[2]]){ mctx.moveTo(pts[p[2]][0],pts[p[2]][1]); mctx.lineTo(p[0],p[1]); }
+  }
+  mctx.stroke();
+};
+
+function resize(){ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); }
+addEventListener('resize',resize); resize();
+
+// rotate through skeletons
+setInterval(()=>{ skelIdx=(skelIdx+1)%skelNames.length; loadSkel(skelNames[skelIdx]); },9000);
+
+// audio starts on first interaction (autoplay policy)
+addEventListener('pointerdown',function once(){initAudio();removeEventListener('pointerdown',once);},{once:true});
+animate();
+</script>
+</body>
+</html>
